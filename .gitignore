@@ -1,0 +1,16 @@
+# Python
+.venv/
+__pycache__/
+
+# Real configs hold private ntfy topics and the healthchecks.io ping URL.
+# Copy the *.example.json files and fill them in.
+config.json
+config.server.json
+
+# Runtime state written by the watcher
+state.json
+control.json
+
+# Local Claude Code / AWS agent rules
+CLAUDE.md
+NOTES.local.md

@@ -1,0 +1,22 @@
+{
+  "days_of_week": [
+    "Saturday",
+    "Sunday"
+  ],
+  "earliest_start": "08:30",
+  "latest_start": "14:00",
+  "players": 1,
+  "check_every_seconds": 180,
+  "courses": {
+    "francis_byrne": true,
+    "hendricks_field": true,
+    "weequahic": false,
+    "galloping_hill_golfnow": true
+  },
+  "notify": {
+    "mac_notification": true,
+    "ntfy_topic": "",
+    "control_topic": "",
+    "heartbeat_url": ""
+  }
+}

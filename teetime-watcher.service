@@ -1,0 +1,14 @@
+[Unit]
+Description=Tee time cancellation watcher
+After=network-online.target
+Wants=network-online.target
+
+[Service]
+User=ubuntu
+WorkingDirectory=/home/ubuntu/teetime-watcher
+ExecStart=/home/ubuntu/teetime-watcher/.venv/bin/python -u watcher.py
+Restart=on-failure
+RestartSec=60
+
+[Install]
+WantedBy=multi-user.target
