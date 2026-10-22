@@ -14,9 +14,6 @@
     "galloping_hill_golfnow": true
   },
   "notify": {
-    "mac_notification": false,
-    "ntfy_topic": "your-private-alert-topic",
-    "control_topic": "your-private-control-topic",
-    "heartbeat_url": "https://hc-ping.com/your-check-uuid"
+    "mac_notification": false
   }
 }

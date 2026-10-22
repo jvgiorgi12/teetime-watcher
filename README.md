@@ -61,11 +61,14 @@ The first run alerts on every matching time it finds; after that, only on newly 
 | `check_every_seconds` | Time between checks (plus up to 30s random). Keep it ≥120 to be polite. |
 | `courses` | Turn individual courses on/off |
 | `notify.mac_notification` | macOS banner and sound, for running on a Mac |
-| `notify.ntfy_topic` | ntfy topic for alerts. Install the ntfy app, subscribe to a hard-to-guess topic name, and put the same name here. Anyone who knows it can read your alerts. |
-| `notify.control_topic` | Second private ntfy topic used for pause/resume. Leave empty to disable. |
-| `notify.heartbeat_url` | healthchecks.io ping URL. Leave empty to disable. |
+| `notify.ntfy_topic` | ntfy topic for alerts. Install the ntfy app, subscribe to a hard-to-guess topic name, and put the same name here. Anyone who knows it can read your alerts. *Secret* (see below). |
+| `notify.control_topic` | Second private ntfy topic used for pause/resume. Leave empty to disable. *Secret.* |
+| `notify.heartbeat_url` | healthchecks.io ping URL. Leave empty to disable. *Secret.* |
 
 Changes take effect on the next check, with no restart needed.
+
+When running locally, the three *secret* values can go in `config.json` (which git ignores). On the server they never
+touch a config file; see [Secrets](#secrets).
 
 ## Pausing and resuming
 
@@ -88,12 +91,20 @@ I run it on a small AWS Lightsail instance (Ubuntu 24.04) as a systemd service.
        IdentityFile ~/.ssh/<your-key>.pem
    ```
 
-2. `cp config.server.example.json config.server.json` and fill in your ntfy topics and healthchecks.io URL.
-3. Run `./deploy.sh`.
+2. Store the three secrets in your macOS Keychain (each command prompts for the value):
+
+   ```bash
+   security add-generic-password -U -s teetime-watcher -a ntfy_topic -w
+   security add-generic-password -U -s teetime-watcher -a control_topic -w
+   security add-generic-password -U -s teetime-watcher -a heartbeat_url -w
+   ```
+
+3. Adjust the non-secret settings in `config.server.json`, then run `./deploy.sh`.
 
 `deploy.sh` is safe to re-run. On a fresh server it installs Python's venv and `certifi`, sets the timezone to
 America/New_York, adds a 1 GB swap file, and disables the `fwupd` firmware updater. It then copies `watcher.py`, the
-systemd unit and `config.server.json` (as the server's `config.json`), and restarts the service. It never copies
+systemd unit and `config.server.json` (as the server's `config.json`), writes the secrets from your Keychain to the
+server, and restarts the service. It never copies
 `state.json`, `control.json` or your local `config.json`.
 
 On the server:
@@ -103,6 +114,24 @@ On the server:
 | Live log | `journalctl -u teetime-watcher -f` |
 | Status | `systemctl status teetime-watcher --no-pager` |
 | Restart | `sudo systemctl restart teetime-watcher` |
+
+### Secrets
+
+The ntfy topics and the healthchecks.io URL work like passwords: anyone who knows them can read your alerts, pause
+the watcher or send fake heartbeats. They're kept out of the repo and out of config files:
+
+```
+macOS Keychain (encrypted, unlocked by your login)
+      │  deploy.sh reads them and sends them over SSH (stdin, never on a command line)
+      ▼
+/etc/teetime-watcher/<name> on the server (owned by root, mode 600)
+      │  systemd LoadCredential= copies them into a private directory at service start
+      ▼
+watcher.py reads $CREDENTIALS_DIRECTORY (it can't read the root-only originals)
+```
+
+To change one, update it in the Keychain with the same `security add-generic-password -U ...` command and re-run
+`./deploy.sh`.
 
 ### Lessons learned
 
@@ -122,4 +151,4 @@ On the server:
 | `deploy.sh` | Sets up a server if needed, copies the watcher over and restarts it |
 | `teetime-watcher.service` | systemd unit |
 | `config.example.json` | Template for running locally |
-| `config.server.example.json` | Template for the server config |
+| `config.server.json` | Server settings (no secrets) |

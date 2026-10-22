@@ -2,10 +2,9 @@
 .venv/
 __pycache__/
 
-# Real configs hold private ntfy topics and the healthchecks.io ping URL.
-# Copy the *.example.json files and fill them in.
+# Local config for running on a Mac (copy config.example.json). Secrets for the
+# server live in the macOS Keychain, not in any file here; see deploy.sh.
 config.json
-config.server.json
 
 # Runtime state written by the watcher
 state.json

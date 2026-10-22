@@ -9,6 +9,11 @@ WorkingDirectory=/home/ubuntu/teetime-watcher
 ExecStart=/home/ubuntu/teetime-watcher/.venv/bin/python -u watcher.py
 Restart=on-failure
 RestartSec=60
+# Secrets live in root-only files (written by deploy.sh). systemd copies them
+# into a private directory only this service can read, at $CREDENTIALS_DIRECTORY.
+LoadCredential=ntfy_topic:/etc/teetime-watcher/ntfy_topic
+LoadCredential=control_topic:/etc/teetime-watcher/control_topic
+LoadCredential=heartbeat_url:/etc/teetime-watcher/heartbeat_url
 
 [Install]
 WantedBy=multi-user.target

@@ -6,10 +6,23 @@
 #
 # Copies watcher.py, the service file, and config.server.json (as the server's
 # config.json). Never copies .venv, state.json, control.json or the Mac's config.json.
+#
+# Secrets (ntfy_topic, control_topic, heartbeat_url) come from the macOS Keychain
+# (service "teetime-watcher") and are written to root-only files in
+# /etc/teetime-watcher/, which systemd passes to the watcher as credentials.
+# To set or change one:
+#   security add-generic-password -U -s teetime-watcher -a ntfy_topic -w
 set -euo pipefail
 
 SERVER=teetime
 DIR=$(cd "$(dirname "$0")" && pwd)
+SECRETS=(ntfy_topic control_topic heartbeat_url)
+
+for name in "${SECRETS[@]}"; do
+  security find-generic-password -s teetime-watcher -a "$name" -w >/dev/null 2>&1 \
+    || { echo "Missing Keychain item teetime-watcher/$name; nothing copied. Add it with:"
+         echo "  security add-generic-password -U -s teetime-watcher -a $name -w"; exit 1; }
+done
 
 python3 -c "import json,sys; json.load(open(sys.argv[1]))" "$DIR/config.server.json" \
   || { echo "config.server.json is not valid JSON; nothing copied."; exit 1; }
@@ -37,6 +50,14 @@ ssh "$SERVER" 'set -e
     sudo systemctl stop fwupd-refresh.timer fwupd.service 2>/dev/null || true
     sudo systemctl mask -q fwupd.service fwupd-refresh.service fwupd-refresh.timer
   fi'
+
+echo "Sending secrets from the Keychain to root-only files on the server..."
+ssh "$SERVER" "sudo install -d -m 700 -o root -g root /etc/teetime-watcher"
+for name in "${SECRETS[@]}"; do
+  # Value goes over SSH stdin, never on a command line.
+  security find-generic-password -s teetime-watcher -a "$name" -w \
+    | ssh "$SERVER" "sudo sh -c 'umask 077; cat > /etc/teetime-watcher/$name'"
+done
 
 echo "Copying files..."
 scp "$DIR/watcher.py" "$DIR/teetime-watcher.service" "$SERVER:~/teetime-watcher/"

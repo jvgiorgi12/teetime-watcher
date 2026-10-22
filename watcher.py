@@ -11,6 +11,7 @@ Usage:
 
 import argparse
 import json
+import os
 import random
 import ssl
 import subprocess
@@ -58,8 +59,30 @@ def log(msg):
     print(f"[{datetime.now():%Y-%m-%d %H:%M:%S}] {msg}", flush=True)
 
 
+# Private values (anyone who knows them can read alerts, pause the watcher or
+# fake heartbeats). On the server, systemd passes them in as credentials (see
+# teetime-watcher.service) so they never sit in config.json. When running
+# locally without systemd, they can be set in config.json's "notify" section.
+SECRET_NAMES = ("ntfy_topic", "control_topic", "heartbeat_url")
+
+
+def load_secrets():
+    """Read secrets from systemd's credentials directory, if we have one."""
+    cred_dir = os.environ.get("CREDENTIALS_DIRECTORY")
+    if not cred_dir:
+        return {}
+    secrets = {}
+    for name in SECRET_NAMES:
+        path = Path(cred_dir) / name
+        if path.exists():
+            secrets[name] = path.read_text().strip()
+    return secrets
+
+
 def load_config():
-    return json.loads(CONFIG_PATH.read_text())
+    cfg = json.loads(CONFIG_PATH.read_text())
+    cfg.setdefault("notify", {}).update(load_secrets())
+    return cfg
 
 
 def target_dates(cfg, window_days):
@@ -327,6 +350,9 @@ def main():
     previous = set(json.loads(STATE_PATH.read_text())) if STATE_PATH.exists() else set()
     ctl = load_control()
     streaks = {}
+    secrets = load_secrets()
+    if secrets:
+        log(f"Loaded secrets from systemd credentials: {', '.join(sorted(secrets))}")
     if ctl["paused"]:
         log("Starting PAUSED (send \"start\" to the control topic to resume)")
     while True:
