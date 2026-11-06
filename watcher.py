@@ -1,7 +1,8 @@
 """Tee time cancellation watcher.
 
 Polls the public (non-cardholder) tee sheets for the Essex County courses
-(foreUP) and Galloping Hill (GolfNow) and alerts when a tee time matching
+(foreUP), Monmouth County's Hominy Hill (foreUP), and Galloping Hill and
+Neshanic Valley (GolfNow), and alerts when a tee time matching
 config.json opens up. It only reads tee sheets; booking is left to you.
 
 Usage:
@@ -34,19 +35,28 @@ UA = (
     "(KHTML, like Gecko) Chrome/140.0 Safari/537.36"
 )
 
-# foreUP: Essex County. booking_class is the public "Non-Cardholders" class;
-# window_days is how far out that class can book.
+# foreUP: booking_id is the county's booking page, booking_class the public
+# (non-cardholder / non-passholder) class, window_days how far out it can book.
 FOREUP_COURSES = {
-    "francis_byrne": {"name": "Francis A. Byrne", "schedule_id": 11078, "booking_class": 49771, "window_days": 8},
-    "hendricks_field": {"name": "Hendricks Field", "schedule_id": 11075, "booking_class": 49493, "window_days": 8},
-    "weequahic": {"name": "Weequahic", "schedule_id": 11077, "booking_class": 49424, "window_days": 7},
+    # Essex County
+    "francis_byrne": {"name": "Francis A. Byrne", "booking_id": 22527, "schedule_id": 11078, "booking_class": 49771, "window_days": 8},
+    "hendricks_field": {"name": "Hendricks Field", "booking_id": 22527, "schedule_id": 11075, "booking_class": 49493, "window_days": 8},
+    "weequahic": {"name": "Weequahic", "booking_id": 22527, "schedule_id": 11077, "booking_class": 49424, "window_days": 7},
+    # Monmouth County
+    "hominy_hill": {"name": "Hominy Hill", "booking_id": 20290, "schedule_id": 3782, "booking_class": 3686, "window_days": 4},
 }
-FOREUP_BOOK_URL = "https://foreupsoftware.com/index.php/booking/22527/{schedule_id}#teetimes"
+FOREUP_BOOK_URL = "https://foreupsoftware.com/index.php/booking/{booking_id}/{schedule_id}#teetimes"
 
-# GolfNow lists the same Galloping Hill public tee sheet as the course's own
-# site (which blocks AWS), and answers plain HTTPS requests.
+# GolfNow: same public tee sheets as the courses' own booking pages (Galloping
+# Hill's own site blocks AWS; Neshanic Valley's is GolfNow's TeeItUp), and it
+# answers plain HTTPS requests.
 GOLFNOW_BASE = "https://www.golfnow.com"
-GOLFNOW_GALLOPING_HILL_ID = 5095
+GOLFNOW_COURSES = {
+    # Union County. Config key kept from when the course's own site was also an option.
+    "galloping_hill_golfnow": {"name": "Galloping Hill", "facility_id": 5095},
+    # Somerset County
+    "neshanic_valley": {"name": "Neshanic Valley", "facility_id": 7083},
+}
 GOLFNOW_WINDOW_DAYS = 7
 GOLFNOW_PLAYER_WORDS = {"One": 1, "Two": 2, "Three": 3, "Four": 4}
 
@@ -129,13 +139,13 @@ def check_foreup(cfg, key, course):
                     "when": dt,
                     "spots": t["available_spots"],
                     "price": t.get("green_fee"),
-                    "url": FOREUP_BOOK_URL.format(schedule_id=course["schedule_id"]),
+                    "url": FOREUP_BOOK_URL.format(booking_id=course["booking_id"], schedule_id=course["schedule_id"]),
                 })
         time.sleep(random.uniform(1, 3))  # be gentle between requests
     return found
 
 
-# --- GolfNow (Galloping Hill) ------------------------------------------------
+# --- GolfNow ------------------------------------------------------------------
 
 def golfnow_max_players(rule):
     # playerRule looks like "One", "OneTwo", "OneTwoThreeFour" or "Any"
@@ -144,7 +154,7 @@ def golfnow_max_players(rule):
     return max((n for w, n in GOLFNOW_PLAYER_WORDS.items() if w in rule), default=0)
 
 
-def check_golfnow_galloping_hill(cfg):
+def check_golfnow(cfg, course):
     found = []
     for d in target_dates(cfg, GOLFNOW_WINDOW_DAYS):
         body = {
@@ -154,7 +164,7 @@ def check_golfnow_galloping_hill(cfg):
             "Date": d.strftime("%b %d %Y"), "HotDealsOnly": False,
             "PriceMin": 0, "PriceMax": 10000, "Players": cfg["players"],
             "TimePeriod": 3, "Holes": 3, "RateType": "all", "TimeMin": 10, "TimeMax": 42,
-            "FacilityId": GOLFNOW_GALLOPING_HILL_ID, "View": "Grouping",
+            "FacilityId": course["facility_id"], "View": "Grouping",
             "ExcludeFeaturedFacilities": True, "TeeTimeCount": 50, "PromotedCampaignsOnly": False,
         }
         req = urllib.request.Request(
@@ -166,14 +176,14 @@ def check_golfnow_galloping_hill(cfg):
         with urllib.request.urlopen(req, timeout=20, context=SSL_CTX) as r:
             data = json.load(r)
         for t in data["ttResults"].get("teeTimes") or []:
-            if t.get("facilityId") != GOLFNOW_GALLOPING_HILL_ID or t.get("isReservationRestricted"):
+            if t.get("facilityId") != course["facility_id"] or t.get("isReservationRestricted"):
                 continue
             # The "+00:00" offset is wrong; the clock time is the course's local time.
             dt = datetime.strptime(t["time"]["date"][:16], "%Y-%m-%dT%H:%M")
             spots = golfnow_max_players(t.get("playerRule", ""))
             if spots >= cfg["players"] and in_time_range(cfg, dt):
                 found.append({
-                    "course": "Galloping Hill",
+                    "course": course["name"],
                     "when": dt,
                     "spots": spots,
                     "price": (t.get("displayRate") or {}).get("value"),
@@ -303,10 +313,7 @@ def heartbeat(cfg, ok, message):
 
 
 def enabled_sources(cfg):
-    names = [c["name"] for k, c in FOREUP_COURSES.items() if cfg["courses"].get(k)]
-    if cfg["courses"].get("galloping_hill_golfnow"):
-        names.append("Galloping Hill")
-    return names
+    return [c["name"] for k, c in {**FOREUP_COURSES, **GOLFNOW_COURSES}.items() if cfg["courses"].get(k)]
 
 
 def report_source_health(cfg, errors, streaks):
@@ -334,11 +341,12 @@ def check_once(cfg):
                 slots += check_foreup(cfg, key, course)
             except Exception as e:
                 errors.append(f"{course['name']}: {e}")
-    if cfg["courses"].get("galloping_hill_golfnow"):
-        try:
-            slots += check_golfnow_galloping_hill(cfg)
-        except Exception as e:
-            errors.append(f"Galloping Hill: {e}")
+    for key, course in GOLFNOW_COURSES.items():
+        if cfg["courses"].get(key):
+            try:
+                slots += check_golfnow(cfg, course)
+            except Exception as e:
+                errors.append(f"{course['name']}: {e}")
     return slots, errors
 
 

@@ -10,8 +10,10 @@
   "courses": {
     "francis_byrne": true,
     "hendricks_field": true,
-    "weequahic": false,
-    "galloping_hill_golfnow": true
+    "weequahic": true,
+    "hominy_hill": true,
+    "galloping_hill_golfnow": true,
+    "neshanic_valley": true
   },
   "notify": {
     "mac_notification": true,

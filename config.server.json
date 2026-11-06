@@ -4,14 +4,16 @@
     "Sunday"
   ],
   "earliest_start": "08:30",
-  "latest_start": "14:00",
+  "latest_start": "12:29",
   "players": 1,
   "check_every_seconds": 180,
   "courses": {
     "francis_byrne": true,
-    "hendricks_field": true,
+    "hendricks_field": false,
     "weequahic": false,
-    "galloping_hill_golfnow": true
+    "hominy_hill": true,
+    "galloping_hill_golfnow": true,
+    "neshanic_valley": true
   },
   "notify": {
     "mac_notification": false

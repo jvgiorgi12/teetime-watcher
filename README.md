@@ -16,10 +16,12 @@ It only **reads** tee sheets. It never books for you: each alert links straight 
 | Francis A. Byrne (Essex County) | foreUP | 8 days |
 | Hendricks Field (Essex County) | foreUP | 8 days |
 | Weequahic (Essex County) | foreUP | 7 days |
+| Hominy Hill (Monmouth County) | foreUP | 4 days |
 | Galloping Hill (Union County) | GolfNow | ~7 days |
+| Neshanic Valley (Somerset County) | GolfNow (the county's TeeItUp page shows the same tee sheet) | ~4 days |
 
 Courses are read through the same JSON endpoints their public booking pages use. Course IDs and booking classes
-are at the top of `watcher.py`.
+are at the top of `watcher.py`; adding another foreUP or GolfNow course is one line there.
 
 ## Features
 
